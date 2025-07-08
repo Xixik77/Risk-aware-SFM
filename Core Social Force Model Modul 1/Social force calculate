@@ -1,0 +1,114 @@
+function [sfm_force, self_force, vehicle_force] = social_force_model_modify(i_position, i_velocity, wallpoints, ped_v, p_start, sfm_goal, expect_v, vehicle1_current_position, vehicle2_current_position, vehicle1_velocity, vehicle2_velocity, k, l, Ai, Bi, Av, Bv, v_shreshold, delta)
+% social_force_model_modify
+% Compute interaction forces in Social Force Model including pedestrian, wall, and vehicle forces.
+
+% Global utility functions
+global pfuns
+pfuns = function_point;
+
+% Initialization
+numpeds = size(ped_v, 1);
+numwalls = length(wallpoints);
+totalforce = zeros(4, 2);
+
+% Parameters
+radius = 0.2;
+mi = 58;
+ti = 1 / 30;
+K1 = 120000;
+K2 = 240000;
+para_Ap = Ai;
+para_Bp = Bi;
+para_Aw = Ai;
+para_Bw = Bi;
+para_Aveh = Av;
+para_Bveh = Bv;
+lamda_iv = 0.22;
+
+%% Goal force
+self_vector = (sfm_goal - i_position) / norm(sfm_goal - i_position);
+self_force = mi * (norm(expect_v) * self_vector - i_velocity) / ti;
+totalforce(1, :) = self_force;
+
+%% Wall force (minimum distance only)
+wallforce = zeros(numwalls, 2);
+distance_iz = zeros(numwalls, 1);
+for z = 1:numwalls
+    proj = pfuns.point_linesegment(i_position, wallpoints{z}(1, :), wallpoints{z}(2, :));
+    distance_iz(z) = norm(i_position - proj);
+    p_iw_vector = (i_position - proj) / distance_iz(z);
+    g_iw = double(radius - distance_iz(z) > 0);
+    wallforce(z, :) = para_Aw * exp((radius - distance_iz(z)) / para_Bw) * p_iw_vector + ...
+                      K1 * g_iw * (radius - distance_iz(z)) * p_iw_vector + ...
+                      K2 * g_iw * (radius - distance_iz(z)) * (-i_velocity);
+end
+[~, minindex] = min(distance_iz);
+wallforce = wallforce(minindex, :);
+totalforce(3, :) = wallforce;
+
+%% Pedestrian interaction force
+peopleforce = zeros(numpeds, 2);
+for j = 1:numpeds
+    if ~isequal(i_position, p_start(j, :)) && any(ped_v(j, :) ~= 0)
+        p_i_pred = i_position + ti * i_velocity;
+        p_j_pred = p_start(j, :) + ti * ped_v(j, :);
+        pred_dist = norm(p_i_pred - p_j_pred);
+        pred_vector = (p_i_pred - p_j_pred) / pred_dist;
+        distance_ij = norm(i_position - p_start(j, :));
+        p_ij_vector = (i_position - p_start(j, :)) / distance_ij;
+        g_ij = max(0, 2 * radius - distance_ij);
+        v_diff = norm(ped_v(j, :) - i_velocity);
+        g_diff = ped_v(j, :) - i_velocity;
+
+        peopleforce(j, :) = para_Ap * exp((2 * radius - pred_dist) / para_Bp) * max(1, v_diff) * pred_vector + ...
+                            K1 * g_ij * (2 * radius - distance_ij) * p_ij_vector + ...
+                            K2 * g_ij * (2 * radius - distance_ij) * g_diff;
+    end
+end
+totalforce(2, :) = sum(peopleforce, 1);
+
+%% Vehicle force (only for vehicle 1 if active)
+vehicle1_force = [0, 0];
+if norm(vehicle1_velocity) ~= 0 && norm(vehicle2_velocity) == 0
+    [vehicle_points_1, ~] = vehicle_points(vehicle1_current_position, vehicle1_velocity);
+    [min_distance1, closest_edge1] = v_p_mindistance(vehicle_points_1, i_position);
+    distance_vehicle1 = min_distance1;
+
+    if ~inpolygon(i_position(1), i_position(2), vehicle_points_1(:,1), vehicle_points_1(:,2))
+        vehicle1_current_position = pfuns.point_linesegment(i_position, closest_edge1(1, :), closest_edge1(2, :));
+    end
+
+    poi_vec = (i_position - vehicle1_current_position) / distance_vehicle1;
+    theta = acos(dot(i_velocity, vehicle1_current_position - i_position) / ...
+                 (norm(i_velocity) * norm(vehicle1_current_position - i_position)));
+    f_angle = lamda_iv + (1 - lamda_iv) * (1 + cos(theta)) / 2;
+    
+    delta_v = norm(vehicle1_velocity) - norm(i_velocity);
+    G_diff = double(norm(vehicle1_velocity) > v_shreshold);
+    modulation = G_diff * delta * delta_v;
+
+    vehicle1_force = para_Aveh * exp((radius - distance_vehicle1)/para_Bveh - modulation) * f_angle * poi_vec;
+end
+totalforce(4, :) = vehicle1_force;
+vehicle_force = vehicle1_force;
+
+%% Output
+sfm_force = sum(totalforce, 1);
+sfm_force = sfm_force(:)';
+end
+
+%% Subfunction: Minimum distance between point and vehicle edges
+function [min_distance, closest_edge] = v_p_mindistance(vehicle_virtualpoints, sfm_current_point)
+global pfuns
+pfuns = function_point;
+min_distance = inf;
+for i = 1:size(vehicle_virtualpoints, 1)
+    p1 = vehicle_virtualpoints(i, :);
+    p2 = vehicle_virtualpoints(mod(i, size(vehicle_virtualpoints, 1)) + 1, :);
+    [~, distance] = pfuns.point_linesegment(sfm_current_point, p1, p2);
+    if distance < min_distance
+        min_distance = distance;
+        closest_edge = [p1; p2];
+    end
+end
+end
