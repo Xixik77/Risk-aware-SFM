@@ -1,0 +1,163 @@
+
+function simulate_sfm_with_decision()
+% SIMULATE_SFM_WITH_DECISION
+%   Generalized simulation framework for pedestrian-vehicle interactions
+%   using Social Force Model (SFM) and decision module.
+%   Supports multiple vehicles and dynamic trajectory updates.
+
+clc; clear; close all;
+global field_judge mi time timestep numtimesteps;
+
+%% ==== Load Simulation Data ====
+load('data/pedestrian_data.mat');
+load('data/ped_vdata.mat');
+load('data/pedestrian_expect_v.mat');
+load('data/vehicle1_data.mat');
+load('data/vehicle2_data.mat');
+
+params = get_simulation_parameters();
+[roomWidth, roomHeight, wallpoints, obs] = ...
+    deal(params.roomWidth, params.roomHeight, params.wallpoints, params.obs);
+
+%% ==== Setup Obstacle Field ====
+field_judge = zeros(25, 27);
+[X, Y] = meshgrid(1:27, 1:25);
+for j = 1:length(obs)
+    field_judge(inpolygon(X(:), Y(:), obs{j}(:,1), obs{j}(:,2))) = 1;
+end
+
+%% ==== Simulation Configuration ====
+mi = 58;
+time = 262/24; 
+timestep = 1/24;
+numtimesteps = round(time / timestep);
+numpeds = size(pedestrian, 1);
+
+p_start = pedestrian(:, 1:2);
+p_goal = pedestrian(:, 3:4);
+ped_v = ped_velocity;
+expect_v = pedestrian_expect_velocity;
+
+%% ==== Vehicle Setup (Generalized) ====
+vehicle_paths = {vehicle1_position_data, vehicle2_position_data};
+vehicle_time_index = [22, 88];
+vehicle_time_end = [163, 235];
+num_vehicles = length(vehicle_paths);
+
+vehicle_positions_record = cell(num_vehicles, 1);
+vehicle_velocities_record = cell(num_vehicles, 1);
+vehicle_current_positions = zeros(num_vehicles, 2);
+vehicle_velocities = zeros(num_vehicles, 2);
+
+for v = 1:num_vehicles
+    vehicle_positions_record{v} = zeros(numtimesteps, 2);
+    vehicle_velocities_record{v} = zeros(numtimesteps, 2);
+end
+
+%% ==== Recording Structures ====
+nodes_record = zeros(numtimesteps, numpeds, 2);
+p_v_record = zeros(numtimesteps, numpeds);
+socialforce = zeros(numpeds, 2);
+nextnodes = zeros(numpeds, 2);
+PET = zeros(numtimesteps, numpeds, num_vehicles);
+
+%% ==== Simulation Loop ====
+for t = 1:numtimesteps
+    % Update vehicle positions and velocities
+    for v = 1:num_vehicles
+        v_path = vehicle_paths{v};
+        if t < vehicle_time_index(v)
+            vehicle_current_positions(v, :) = v_path(1, :);
+            vehicle_velocities(v, :) = [0, 0];
+        elseif t <= vehicle_time_end(v)
+            idx = t - vehicle_time_index(v) + 1;
+            vehicle_current_positions(v, :) = v_path(idx, :);
+            if t > 1
+                prev = vehicle_positions_record{v}(t-1, :);
+                vehicle_velocities(v, :) = (vehicle_current_positions(v, :) - prev) / timestep;
+            end
+        else
+            vehicle_current_positions(v, :) = v_path(end, :);
+            vehicle_velocities(v, :) = [0, 0];
+        end
+        vehicle_positions_record{v}(t, :) = vehicle_current_positions(v, :);
+        vehicle_velocities_record{v}(t, :) = vehicle_velocities(v, :);
+    end
+
+    % Simulation for each pedestrian
+    for i = 1:numpeds
+        i_pos = p_start(i, :);
+        i_vel = ped_v(i, :);
+
+        % Goal reached
+        if norm(p_goal(i, :) - i_pos) < 0.2
+            ped_v(i, :) = [0, 0];
+            nextnodes(i, :) = p_goal(i, :);
+            nodes_record(t, i, :) = p_goal(i, :);
+            continue;
+        end
+
+        % A* path planning
+        path = Astar(i_pos, p_goal(i, :), field_judge);
+        state = 0;
+        if ~isempty(path{1})
+            next_path = path{1};
+            if size(next_path, 1) > 1
+                next_position = next_path(2, :);
+                state = 1;
+            elseif size(next_path, 1) == 1
+                next_position = next_path(1, :);
+                state = 2;
+            end
+        end
+
+        % SFM Calculation
+        if state == 0
+            sfm = [0, 0];
+        else
+            sfm_goal = p_goal(i, :);  % or next_position
+            [sfm, ~, ~] = social_force_model_modify(i_pos, i_vel, wallpoints, ped_v, p_start, sfm_goal, expect_v(i,:), vehicle_current_positions, vehicle_velocities, 1, 1, 2000, 0.08, 3000, 0.12, 1.0, 0.4);
+        end
+        socialforce(i, :) = sfm;
+
+        % Update velocity and position
+        new_vel = ped_v(i, :) + (socialforce(i, :) / mi) * timestep;
+        if norm(new_vel) > 2.0
+            new_vel = new_vel / norm(new_vel) * 2.0;
+        end
+        ped_v(i, :) = new_vel;
+        nextnodes(i, :) = i_pos + new_vel * timestep;
+        p_start(i, :) = nextnodes(i, :);
+
+        % Record
+        nodes_record(t, i, :) = nextnodes(i, :);
+        p_v_record(t, i) = norm(new_vel);
+
+        % PET Calculation
+        for v = 1:num_vehicles
+            PET(t, i, v) = calculate_PET(vehicle_current_positions(v, :), vehicle_velocities(v, :), i_pos, i_vel);
+        end
+    end
+
+    % Visualization (optional)
+    if mod(t, 5) == 0
+        figure(1); clf; hold on;
+        axis([0 roomWidth 0 roomHeight]);
+        set(gca, 'YDir', 'reverse');
+        for j = 1:length(wallpoints)
+            plot(wallpoints{j}(:,1), wallpoints{j}(:,2), 'r-', 'LineWidth', 2);
+        end
+        for v = 1:num_vehicles
+            plot(vehicle_positions_record{v}(1:t,1), vehicle_positions_record{v}(1:t,2), '-', 'LineWidth', 1.5);
+        end
+        colors = lines(numpeds);
+        for p = 1:numpeds
+            pt = squeeze(nodes_record(t, p, :));
+            plot(pt(1), pt(2), 'o', 'Color', colors(p, :));
+        end
+        title(sprintf('Time = %.2f s', t*timestep));
+        drawnow;
+    end
+end
+
+end
