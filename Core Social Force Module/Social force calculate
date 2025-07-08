@@ -67,28 +67,42 @@ for j = 1:numpeds
 end
 totalforce(2, :) = sum(peopleforce, 1);
 
-%% Vehicle force (only for vehicle 1 if active)
-vehicle1_force = [0, 0];
-if norm(vehicle1_velocity) ~= 0 && norm(vehicle2_velocity) == 0
-    [vehicle_points_1, ~] = vehicle_points(vehicle1_current_position, vehicle1_velocity);
-    [min_distance1, closest_edge1] = v_p_mindistance(vehicle_points_1, i_position);
-    distance_vehicle1 = min_distance1;
+%% Vehicle force (generalized for multiple vehicles)
+vehicle_force = [0, 0];
+num_vehicles = size(vehicle_positions, 1);
+for v = 1:num_vehicles
+    v_pos = vehicle_positions(v, :);
+    v_vel = vehicle_velocities(v, :);
 
-    if ~inpolygon(i_position(1), i_position(2), vehicle_points_1(:,1), vehicle_points_1(:,2))
-        vehicle1_current_position = pfuns.point_linesegment(i_position, closest_edge1(1, :), closest_edge1(2, :));
+    if norm(v_vel) == 0
+        continue;
     end
-
-    poi_vec = (i_position - vehicle1_current_position) / distance_vehicle1;
-    theta = acos(dot(i_velocity, vehicle1_current_position - i_position) / ...
-                 (norm(i_velocity) * norm(vehicle1_current_position - i_position)));
+    [vehicle_points_v, ~] = vehicle_points(v_pos, v_vel);
+    [min_distance, closest_edge] = v_p_mindistance(vehicle_points_v, i_position);
+    if ~inpolygon(i_position(1), i_position(2), vehicle_points_v(:, 1), vehicle_points_v(:, 2))
+        [v_proj, ~] = pfuns.point_linesegment(i_position, closest_edge(1, :), closest_edge(2, :));
+    else
+        v_proj = v_pos;
+    end
+    poi_vec = (i_position - v_proj) / min_distance;
+    rel_vec = v_proj - i_position;
+    dot_product = dot(i_velocity, rel_vec);
+    norm_vel = norm(i_velocity);
+    norm_rel = norm(rel_vec);
+    theta = abs(acos(dot_product / (norm_vel * norm_rel + 1e-6)));
     f_angle = lamda_iv + (1 - lamda_iv) * (1 + cos(theta)) / 2;
-    
-    delta_v = norm(vehicle1_velocity) - norm(i_velocity);
-    G_diff = double(norm(vehicle1_velocity) > v_shreshold);
-    modulation = G_diff * delta * delta_v;
 
-    vehicle1_force = para_Aveh * exp((radius - distance_vehicle1)/para_Bveh - modulation) * f_angle * poi_vec;
+    if norm(v_vel) > v_shreshold
+        speed_mod = (norm(v_vel) - norm(i_velocity)) * delta;
+    else
+        speed_mod = 1;
+    end
+    v_force = para_Aveh * exp((radius - min_distance) / para_Bveh - speed_mod) * f_angle * poi_vec;
+    vehicle_force = vehicle_force + v_force;
 end
+totalforce(4, :) = vehicle_force;
+
+% Store vehicle force into total force matrix
 totalforce(4, :) = vehicle1_force;
 vehicle_force = vehicle1_force;
 
