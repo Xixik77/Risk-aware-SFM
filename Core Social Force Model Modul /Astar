@@ -1,0 +1,93 @@
+function [paths] = Astar(p_starts, p_goals, field_judge)
+%Astar Computes the shortest path(s) using A* algorithm
+%   INPUTS:
+%       p_starts     - N×2 matrix of start positions
+%       p_goals      - N×2 matrix of goal positions
+%       field_judge  - M×N matrix representing obstacles (1 for obstacle)
+%   OUTPUT:
+%       paths        - Cell array of computed paths for each agent
+
+    paths = cell(size(p_starts, 1), 1);
+    for i = 1:size(p_starts, 1)
+        paths{i} = path_pedestrian(p_starts(i, :), p_goals(i, :), field_judge);
+    end
+end
+
+function path = path_pedestrian(p_start, p_goal, field_judge)
+%path_pedestrian Computes the A* path from a start to a goal point
+%   INPUTS:
+%       p_start      - 1×2 vector of start position
+%       p_goal       - 1×2 vector of goal position
+%       field_judge  - Map of obstacle field
+%   OUTPUT:
+%       path         - List of positions from start to goal
+
+    path = [];
+    open_set = p_start;
+    GHF = [0, h(p_start, p_goal), h(p_start, p_goal)];  % [g, h, f]
+    paths = {[]};
+    closed_set = [];
+
+    while ~isempty(open_set)
+        [~, idx] = min(GHF(:, 3));
+        current = open_set(idx, :);
+        current_GHF = GHF(idx, :);
+        current_path = paths{idx};
+
+        if norm(current - p_goal) < 0.2
+            path = [current_path; current];
+            return;
+        end
+
+        % Remove current from open set
+        open_set(idx, :) = [];
+        GHF(idx, :) = [];
+        paths(idx) = [];
+
+        % Add to closed set
+        closed_set = [closed_set; current];
+
+        % Define 8-connected movement
+        neighbor_offsets = [-0.2, 0; 0.2, 0; 0, -0.2; 0, 0.2; ...
+                            0.2, -0.2; 0.2, 0.2; -0.2, 0.2; -0.2, -0.2];
+
+        for i = 1:size(neighbor_offsets, 1)
+            neighbor = current + neighbor_offsets(i, :);
+
+            if neighbor(1) > 35 || neighbor(1) < 1 || ...
+               neighbor(2) > 20 || neighbor(2) < 1
+                continue;
+            end
+
+            if field_judge(round(neighbor(2)), round(neighbor(1))) == 1
+                continue;
+            end
+
+            if any(ismember(closed_set, neighbor, 'rows'))
+                continue;
+            end
+
+            g_new = current_GHF(1) + norm(neighbor - current);
+            h_new = h(neighbor, p_goal);
+            f_new = g_new + h_new;
+
+            existing_idx = find(all(bsxfun(@eq, open_set, neighbor), 2), 1);
+
+            if isempty(existing_idx)
+                open_set = [open_set; neighbor];
+                GHF = [GHF; g_new, h_new, f_new];
+                paths = [paths; {[current_path; current]}];
+            else
+                if GHF(existing_idx, 1) > g_new
+                    GHF(existing_idx, :) = [g_new, h_new, f_new];
+                    paths{existing_idx} = [current_path; current];
+                end
+            end
+        end
+    end
+end
+
+function cost = h(node, goal)
+%h Heuristic cost function (Euclidean distance with weight)
+    cost = 1.5 * norm(node - goal);
+end
