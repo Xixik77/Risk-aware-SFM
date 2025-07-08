@@ -1,0 +1,27 @@
+function [force, hesitate_state ] = hesitate_model(p1,v1,p2, v2)
+    A = [-v1, v2];
+    b = p2 - p1;
+    sol = A\b;
+    interaction_point = p1 + sol(1)*v1;
+    [field,~] = vehicle_points(interaction_point, v1);
+    front_left = field(1,:);
+    front_right = field(2,:);
+    front_mid =(front_left + front_right) / 2;
+    
+    ttc_distance =norm(p1 - front_mid);
+    ttc =ttc_distance / norm(v1);
+    
+    ttf_distance = norm(p2 - interaction_point);
+    ttf = ttf_distance / norm(v2);
+ 
+    if ttc < ttf 
+        v3 = ttf_distance / ttc;
+        force = 58 * (v3 - v2) *28;
+        hesitate_state = 1;
+    else
+        v4 = ttf_distance / ttf;
+        force = 58 * (v4 - v2) * 28;
+        hesitate_state = 2;
+    end
+end
+
