@@ -28,7 +28,7 @@ end
 
 %% ==== Simulation Configuration ====
 mi = 58;
-time = 262/24; 
+time = times/24; 
 timestep = 1/24;
 numtimesteps = round(time / timestep);
 numpeds = size(pedestrian, 1);
