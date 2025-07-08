@@ -1,0 +1,89 @@
+function pfuns = function_point
+% FUNCTION_POINT
+%   Returns a structure of utility geometric functions for use in SFM and
+%   agent-based pedestrian simulations.
+%
+% OUTPUT:
+%   pfuns - struct containing function handles:
+%       .point_linesegment      - nearest point and distance from a point to a line segment
+%       .point_intersection     - intersection point of two moving agents
+%       .vertical_distance      - vertical distance from point to line
+%       .area                   - polygon area
+%       .interaction_angle      - angle between pedestrian and vehicle movement
+
+    pfuns.point_linesegment    = @point_linesegment_cal;
+    pfuns.point_intersection   = @point_intersection_cal;
+    pfuns.vertical_distance    = @vertical_distance_cal;
+    pfuns.area                 = @area_cal;
+    pfuns.interaction_angle    = @interaction_angle_cal;
+end
+
+%% === Compute nearest point on line segment AB from point A and distance ===
+function [nearest_point, distance] = point_linesegment_cal(A, B, C)
+    BA = A - B;
+    BC = C - B;
+    BC_squared = sum(BC .^ 2);
+    t = dot(BA, BC) / BC_squared;
+    P = B + t * BC;
+
+    if t <= 0
+        nearest_point = B;
+    elseif t < 1
+        nearest_point = P;
+    else
+        nearest_point = C;
+    end
+    distance = norm(A - nearest_point);
+end
+
+%% === Compute intersection point of two moving points ===
+function intersection_point = point_intersection_cal(a_v, a_p, b_v, b_p)
+    % Check if both move in parallel
+    if all(a_v == b_v)
+        intersection_point = [inf, inf];
+        return;
+    end
+
+    A = [a_v(1), -b_v(1); a_v(2), -b_v(2)];
+    B = [b_p(1) - a_p(1); b_p(2) - a_p(2)];
+
+    if det(A) == 0
+        intersection_point = [inf, inf];
+        return;
+    end
+
+    t_s = A \ B;
+    t = t_s(1);
+    s = t_s(2);
+
+    if t < 0 || s < 0
+        intersection_point = [inf, inf];
+        return;
+    end
+
+    intersection_point = a_p + a_v * t;
+end
+
+%% === Compute vertical distance from point Q to line P1-P2 ===
+function vertical_distance = vertical_distance_cal(Q, P1, P2)
+    v = P2 - P1;
+    u = Q - P1;
+    n = [-v(2), v(1)];
+    vertical_distance = abs(dot(u, n)) / norm(n);
+end
+
+%% === Compute polygon area given vertices (Nx2) ===
+function area = area_cal(P)
+    x = P(:, 1);
+    y = P(:, 2);
+    area = polyarea(x, y);
+end
+
+%% === Compute interaction angle between pedestrian and vehicle ===
+function angle = interaction_angle_cal(i_velocity, i_position, vehicle_position, vehicle_velocity)
+    p = i_position - vehicle_position;
+    v = i_velocity - vehicle_velocity;
+    cos_theta = dot(p, v) / (norm(p) * norm(v));
+    theta = acos(cos_theta);
+    angle = rad2deg(theta);
+end
