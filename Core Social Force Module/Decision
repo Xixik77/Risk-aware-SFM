@@ -19,78 +19,83 @@ function decision = decision_model2(i_velocity, i_position, vehicle_position, ve
 global pfuns
 pfuns = function_point;
 
-p_angle = 25;           % Angle threshold in degrees
-time_hesitate = 1;      % Time threshold for hesitation
+p_angle = 25;           % Angle threshold for interaction classification (degrees)
+time_hesitate = 1;      % Time threshold for hesitation (seconds)
 
+% Extract pedestrian and vehicle positions/velocities
 p1 = i_position;
 p2 = vehicle_position;
 v1 = i_velocity;
 v2 = vehicle_velocity;
 
-% Compute interaction point based on trajectory projection
+% Compute intersection point between pedestrian and vehicle trajectories
 interaction_point = pfuns.point_intersection(v1, p1, v2, p2);
 
-% Time to arrival at intersection
+% Time for pedestrian and vehicle to reach the interaction point
 t_p = norm(interaction_point - p1) / (norm(v1) + 1e-6);
 t_v = norm(interaction_point - p2) / (norm(v2) + 1e-6);
 
-if isequal(interaction_point, [inf, inf])
-    if norm(i_velocity) ~= 0
-        decision = 'E';
-    end
-else
-    if t_p < 0 || t_v < 0
-        decision = 'E';
-    else
-        if t_p >= t_v
-            % Vehicle arrives first
-            i_future_position = p1 + v1 * t_v;
-            [veh_frame, veh_virtual] = vehicle_points_decision(interaction_point, v2);
-            angle = pfuns.interaction_angle(v1, p1, v2, p2);
+% No interaction point or any agent is static
+if isequal(interaction_point, [inf, inf]) || norm(v1) == 0 || norm(v2) == 0
+    decision = 'E';  % No conflict; follow social force model (SFM)
+    return;
+end
 
-            if inpolygon(i_future_position(1), i_future_position(2), veh_frame(:,1), veh_frame(:,2))
-                if angle < p_angle || angle > 180 - p_angle
-                    decision = 'F';
-                else
-                    decision = 'A';
-                end
-            elseif inpolygon(i_future_position(1), i_future_position(2), veh_virtual(:,1), veh_virtual(:,2))
-                if angle < p_angle || angle > 180 - p_angle
-                    decision = 'F';
-                else
-                    if t_p - t_v < time_hesitate
-                        decision = 'G';
-                    else
-                        decision = 'B';
-                    end
-                end
-            else
-                decision = 'E';
-            end
+% If either agent would arrive in the past, ignore interaction
+if t_p < 0 || t_v < 0
+    decision = 'E';
+    return;
+end
 
+%% Case 1: Vehicle arrives first at the interaction point
+if t_p >= t_v
+    i_future_position = p1 + v1 * t_v;  % Pedestrian's future position when vehicle arrives
+    [danger_area, risk_area] = vehicle_points_decision(interaction_point, v2);
+    interaction_angle = pfuns.interaction_angle(v1, p1, v2, p2);
+
+    if inpolygon(i_future_position(1), i_future_position(2), danger_area(:,1), danger_area(:,2))
+        % Pedestrian is in the danger zone
+        if interaction_angle < p_angle || interaction_angle > (180 - p_angle)
+            decision = 'F';  % Front/rear interaction: evasive turn
         else
-            % Pedestrian arrives first
-            i_future_position = interaction_point;
-            vehicle_future_position = p2 + v2 * t_p;
-            [veh_frame, veh_virtual] = vehicle_points(vehicle_future_position, v2);
-            angle = pfuns.interaction_angle(v1, p1, v2, p2);
-
-            if inpolygon(i_future_position(1), i_future_position(2), veh_frame(:,1), veh_frame(:,2))
-                if angle < p_angle || angle > 180 - p_angle
-                    decision = 'F';
-                else
-                    decision = 'C';
-                end
-            elseif inpolygon(i_future_position(1), i_future_position(2), veh_virtual(:,1), veh_virtual(:,2))
-                if angle < p_angle || angle > 180 - p_angle
-                    decision = 'F';
-                else
-                    decision = 'D';
-                end
+            decision = 'A';  % Lateral interaction: strong deceleration
+        end
+    elseif inpolygon(i_future_position(1), i_future_position(2), risk_area(:,1), risk_area(:,2))
+        % Pedestrian is in the risk zone
+        if interaction_angle < p_angle || interaction_angle > (180 - p_angle)
+            decision = 'F';  % Front/rear interaction: evasive turn
+        else
+            if t_p - t_v < time_hesitate
+                decision = 'G';  % Hesitation module: pedestrian stops
             else
-                decision = 'F';
+                decision = 'B';  % Lateral interaction: mild deceleration
             end
         end
+    else
+        decision = 'E';  % No conflict zone: follow SFM
+    end
+
+%% Case 2: Pedestrian arrives first at the interaction point
+else
+    i_future_position = interaction_point;
+    vehicle_future_position = p2 + v2 * t_p;
+    [danger_area, risk_area] = vehicle_points(vehicle_future_position, v2);
+    interaction_angle = pfuns.interaction_angle(v1, p1, v2, p2);
+
+    if inpolygon(i_future_position(1), i_future_position(2), danger_area(:,1), danger_area(:,2))
+        if interaction_angle < p_angle || interaction_angle > (180 - p_angle)
+            decision = 'F';  % Front/rear interaction: evasive turn
+        else
+            decision = 'C';  % Lateral interaction: strong acceleration
+        end
+    elseif inpolygon(i_future_position(1), i_future_position(2), risk_area(:,1), risk_area(:,2))
+        if interaction_angle < p_angle || interaction_angle > (180 - p_angle)
+            decision = 'F';  % Front/rear interaction: evasive turn
+        else
+            decision = 'D';  % Lateral interaction: mild acceleration
+        end
+    else
+        decision = 'F';  % Default evasive turn if outside all regions
     end
 end
 end
