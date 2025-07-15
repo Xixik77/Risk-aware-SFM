@@ -1,27 +1,51 @@
-function [force, hesitate_state ] = hesitate_model(p1,v1,p2, v2)
-    A = [-v1, v2];
-    b = p2 - p1;
-    sol = A\b;
-    interaction_point = p1 + sol(1)*v1;
-    [field,~] = vehicle_points(interaction_point, v1);
-    front_left = field(1,:);
-    front_right = field(2,:);
-    front_mid =(front_left + front_right) / 2;
-    
-    ttc_distance =norm(p1 - front_mid);
-    ttc =ttc_distance / norm(v1);
-    
-    ttf_distance = norm(p2 - interaction_point);
-    ttf = ttf_distance / norm(v2);
- 
-    if ttc < ttf 
-        v3 = ttf_distance / ttc;
-        force = 58 * (v3 - v2) *28;
-        hesitate_state = 1;
-    else
-        v4 = ttf_distance / ttf;
-        force = 58 * (v4 - v2) * 28;
-        hesitate_state = 2;
-    end
+function [force, hesitate_state] = hesitate_model(p1, v1, p2, v2)
+% HESITATE_MODEL
+%   Calculates the pedestrian adjustment force under hesitation when the expected crossing order is unclear.
+%
+% INPUT:
+%   p1 - 1×2 pedestrian position
+%   v1 - 1×2 pedestrian velocity
+%   p2 - 1×2 vehicle position
+%   v2 - 1×2 vehicle velocity
+%
+% OUTPUT:
+%   force          - 1×2 adjustment force vector applied to pedestrian
+%   hesitate_state - hesitation state indicator
+%                    1: pedestrian accelerates to cross before the vehicle
+%                    2: pedestrian decelerates/yields to let vehicle pass first
+
+%% Compute conflict (interaction) point between pedestrian and vehicle
+A = [-v1; v2]';    % Coefficient matrix
+b = (p2 - p1)';    % Difference in positions
+sol = A \ b;       % Solve for time multipliers
+interaction_point = p1 + sol(1) * v1;
+
+%% Calculate TTC (Time to Collision)
+% TTC is pedestrian's time to reach the vehicle front midpoint
+[field, ~] = vehicle_points(interaction_point, v2);   % Use v2 as vehicle heading
+front_left = field(1,:);
+front_right = field(2,:);
+front_mid = (front_left + front_right) / 2;
+
+ttc_distance = norm(p1 - front_mid);
+ttc = ttc_distance / (norm(v1) + 1e-6);
+
+%% Calculate TTF (Time to Finish crossing)
+% TTF is vehicle's time to reach the interaction point
+ttf_distance = norm(p2 - interaction_point);
+ttf = ttf_distance / (norm(v2) + 1e-6);
+
+%% Decision and Force Computation
+if ttc > ttf
+    % Pedestrian has enough time to cross before vehicle
+    desired_speed = ttf_distance / ttc;  % Increase speed to clear
+    force = 58 * (desired_speed - norm(v1)) * (v1 / (norm(v1) + 1e-6)) * 28;
+    hesitate_state = 1;  % Accelerate to cross
+else
+    % Vehicle reaches conflict point before pedestrian finishes
+    desired_speed = ttf_distance / ttf;  % Slow down / yield
+    force = 58 * (desired_speed - norm(v1)) * (v1 / (norm(v1) + 1e-6)) * 28;
+    hesitate_state = 2;  % Decelerate to yield
 end
 
+end
