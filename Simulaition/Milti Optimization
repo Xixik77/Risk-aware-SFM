@@ -1,1 +1,129 @@
 
+% Evolutionary Bayesian Optimization with Pareto Frontier for SFM Parameter Tuning
+
+% Step 1: Initialization
+paramSpace = [
+    optimizableVariable('Ai', [500, 5000], 'Type', 'real'),
+    optimizableVariable('Bi', [0.02, 2], 'Type', 'real'),
+    optimizableVariable('Av', [500, 10000], 'Type', 'real'),
+    optimizableVariable('Bv', [0.2, 5], 'Type', 'real'),
+    optimizableVariable('v_threshold', [0, 5], 'Type', 'real'),
+    optimizableVariable('delta', [0.1, 3], 'Type', 'real')
+];
+
+nInitial = 20;
+initialSamples = lhsdesign(nInitial, numel(paramSpace));
+for i = 1:numel(paramSpace)
+    range = paramSpace(i).Range;
+    initialSamples(:, i) = range(1) + initialSamples(:, i) * (range(2) - range(1));
+end
+
+objectiveValues = zeros(nInitial, 2);
+for i = 1:nInitial
+    params = structToMap(paramSpace, initialSamples(i,:));
+    objectiveValues(i,:) = objective_Function(params); % returns [ADE, RPETE]
+end
+
+paretoIdx = calculateParetoFront(objectiveValues);
+paretoFront = initialSamples(paretoIdx,:);
+paretoValues = objectiveValues(paretoIdx,:);
+
+% Train initial multi-output GP
+for j = 1:2
+    gpModels{j} = fitrgp(initialSamples, objectiveValues(:,j), 'KernelFunction', 'ardsquaredexponential');
+end
+
+maxIter = 50;
+nCandidates = 100;
+for iter = 1:maxIter
+    % Step 2: Candidate generation via hypervolume acquisition
+    candidates = lhsdesign(nCandidates, numel(paramSpace));
+    for i = 1:numel(paramSpace)
+        range = paramSpace(i).Range;
+        candidates(:, i) = range(1) + candidates(:, i) * (range(2) - range(1));
+    end
+
+    acqValues = zeros(nCandidates,1);
+    for c = 1:nCandidates
+        acqValues(c) = hypervolumeAcquisition(gpModels, candidates(c,:), paretoValues);
+    end
+    [~, bestIdx] = max(acqValues);
+    seed = candidates(bestIdx,:);
+
+    % Step 3: Offspring via Genetic Algorithm
+    offspring = geneticOperators(seed, 10, paramSpace);
+    candidateSet = [candidates; offspring];
+
+    % Step 4: Evaluation and Pareto update
+    newObjVals = zeros(size(candidateSet,1), 2);
+    for i = 1:size(candidateSet,1)
+        params = structToMap(paramSpace, candidateSet(i,:));
+        newObjVals(i,:) = objective_Function(params);
+    end
+
+    allSamples = [initialSamples; candidateSet];
+    allObjVals = [objectiveValues; newObjVals];
+
+    paretoIdx = calculateParetoFront(allObjVals);
+    paretoFront = allSamples(paretoIdx,:);
+    paretoValues = allObjVals(paretoIdx,:);
+
+    % Step 5: Update GP models
+    for j = 1:2
+        gpModels{j} = fitrgp(allSamples, allObjVals(:,j), 'KernelFunction', 'ardsquaredexponential');
+    end
+
+    fprintf('Iteration %d completed. Pareto set size: %d\n', iter, size(paretoFront,1));
+
+    initialSamples = allSamples;
+    objectiveValues = allObjVals;
+end
+
+save('optimized_pareto_front.mat','paretoFront','paretoValues');
+
+% --- Supporting functions ---
+function acq = hypervolumeAcquisition(gpModels, x, paretoValues)
+    mu = zeros(1,2); sigma = zeros(1,2);
+    for j = 1:2
+        [mu(j), sigma(j)] = predict(gpModels{j}, x);
+    end
+
+    refPoint = max(paretoValues,[],1) + 1;
+    improvements = max(refPoint - mu, 0);
+    acq = prod(improvements);
+end
+
+function offspring = geneticOperators(seed, nOffspring, paramSpace)
+    mutationRate = 0.1;
+    offspring = repmat(seed, nOffspring, 1);
+    for i = 1:nOffspring
+        for j = 1:numel(seed)
+            if rand < mutationRate
+                range = paramSpace(j).Range;
+                perturb = randn * (range(2)-range(1))*0.05;
+                offspring(i,j) = min(max(offspring(i,j) + perturb, range(1)), range(2));
+            end
+        end
+    end
+end
+
+function paramMap = structToMap(paramSpace, values)
+    paramMap = containers.Map();
+    for i = 1:numel(paramSpace)
+        paramMap(paramSpace(i).Name) = values(i);
+    end
+end
+
+function paretoIdx = calculateParetoFront(objectives)
+    numPoints = size(objectives,1);
+    isPareto = true(numPoints,1);
+    for i = 1:numPoints
+        for j = 1:numPoints
+            if all(objectives(j,:) <= objectives(i,:)) && any(objectives(j,:) < objectives(i,:))
+                isPareto(i) = false;
+                break;
+            end
+        end
+    end
+    paretoIdx = find(isPareto);
+end
