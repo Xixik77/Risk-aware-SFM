@@ -143,39 +143,59 @@ for t = 1:numtimesteps
 
             if ~isequal(ped_v(i,:), [0,0]) && ~isequal(vehicle_velocity, [0,0])
                 decision = decision_model2(ped_v(i,:), i_pos, vehicle_current_position, vehicle_velocity);
-                if decision == 'A'
-                    sfm_direction = ped_v(i,:) / norm(ped_v(i, :));
-                    socialforce(i, :) = norm(vehicle_force) * sfm_direction * -0.035;
-                elseif decision == 'B'
-                    sfm_direction = ped_v(i,:) / norm(ped_v(i, :));
-                    socialforce(i, :) = norm(vehicle_force) * sfm_direction * -0.012;
-                elseif decision == 'C'
-                    sfm_direction = ped_v(i,:) / norm(ped_v(i, :));
-                    socialforce(i,:) = norm(self_force) * sfm_direction * 0.4;
-                elseif decision == 'D'
-                    sfm_direction = ped_v(i,:) / norm(ped_v(i, :));
-                    socialforce(i,:) = norm(self_force) * sfm_direction * 0.2;
-                elseif decision == 'E'
-                    socialforce(i,:) = socialforce(i,:);
-                elseif decision == 'F'
-                    vehicle_direction = vehicle_velocity / norm(vehicle_velocity);
-                    ped_direction = ped_v(i,:) / norm(ped_v(i, :));
-                    cos_theta = dot(vehicle_direction, ped_direction);
-                    theta = atan2(sqrt(1 - cos_theta^2), cos_theta);
-                    new_theta = theta + pi/6;
-                    new_direction = [cos(new_theta), sin(new_theta)];
-                    socialforce(i,:) = norm(socialforce(i,:)) * new_direction;
-                elseif decision == 'G'
-                    [socialforce(i, :), hesitate_state] = hesitate_model(vehicle_current_position, vehicle_velocity, i_pos, ped_v(i,:));
-                    if hesitate_state == 1
-                        socialforce(i, :) = norm(socialforce(i, :)) * ped_v(i,:) / norm(ped_v(i,:));
-                    else
-                        socialforce(i, :) = norm(socialforce(i, :)) * (-ped_v(i,:)) / norm(ped_v(i,:));
-                    end
-                elseif decision == 'H'
-                    socialforce(i, :) = [0, 0];
-                end
-                disp(decision);
+                                      if decision == 'A'
+                            % Strong deceleration: scale negative along pedestrian's moving direction
+                            sfm_direction = ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                            socialforce(i, :) = norm(vehicleforce) * sfm_direction * -0.035;
+
+                        elseif decision == 'B'
+                            % Mild deceleration
+                            sfm_direction = ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                            socialforce(i, :) = norm(vehicleforce) * sfm_direction * -0.012;
+
+                        elseif decision == 'C'
+                            % Strong acceleration
+                            sfm_direction = ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                            socialforce(i, :) = norm(selfforce) * sfm_direction * 0.4;
+
+                        elseif decision == 'D'
+                            % Mild acceleration
+                            sfm_direction = ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                            socialforce(i, :) = norm(vselfforce) * sfm_direction * 0.2;
+
+                        elseif decision == 'E'
+                            % Social force model unchanged
+                            socialforce(i, :) = socialforce(i, :);
+
+                        elseif decision == 'F'
+                            % Evasive turning: rotate current pedestrian direction by pi/6
+                            ped_direction = ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                            rotation_angle = pi / 6;  % 30 degrees rotation
+
+                            % Compute perpendicular vector (clockwise rotation)
+                            rotation_matrix = [cos(rotation_angle), -sin(rotation_angle); 
+                                               sin(rotation_angle),  cos(rotation_angle)];
+                            new_direction = (rotation_matrix * ped_direction')';
+
+                            socialforce(i, :) = norm(socialforce(i,:)) * new_direction;
+
+                        elseif decision == 'G'
+                            % Hesitation module force adjustment
+                            [hesitate_force, hesitate_state] = hesitate_model(vehicle_current_position, vehicle_velocity, i_position, ped_v(i,:));
+
+                            if hesitate_state == 1
+                                % Accelerate forward
+                                socialforce(i, :) = hesitate_force;
+                            else
+                                % Decelerate: apply negative of current direction
+                                reverse_dir = -ped_v(i,:) / (norm(ped_v(i,:)) + 1e-6);
+                                socialforce(i, :) = norm(hesitate_force) * reverse_dir;
+                            end
+
+                        elseif decision == 'H'
+                            % Stop moving
+                            socialforce(i, :) = [0, 0];
+                        end
             end
         end
 
