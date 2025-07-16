@@ -39,8 +39,9 @@ This repository provides the source code for simulating risk-aware pedestrian-ve
 ├── utils/                      # Utility functions for geometric computations and scene configuration
 ├── main_simulation.m           # Main simulation entry
 ├── README.md
+---
 
-## 🤝 Contributing to this project
+##🤝 Contributing to this project
 
 We welcome and encourage contributions to this project! Whether it's reporting bugs, suggesting new features, or improving existing functionality, your input is highly valuable. You can open an issue on our [GitHub Issues](https://github.com/Xixik77/Risk-aware-SFM) page to share feedback or raise problems.
 
@@ -48,6 +49,7 @@ If you'd like to contribute directly, feel free to fork this repository and subm
 
 We also recommend following best practices for version control and keeping changes consistent with the project's structure.
 
+---
 ## 📄 License
 
 Distributed under the MIT License. See the [LICENSE](LICENSE) file for more information.
