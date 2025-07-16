@@ -1,1 +1,108 @@
 
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.spatial import ConvexHull
+
+
+def plot_pareto_front(csv_path, save_path, scene_name='scene'):
+    # ==================== Style ====================
+    plt.style.use('seaborn-v0_8-poster')
+    sns.set_palette("husl")
+    plt.rcParams.update({
+        'font.family': 'DejaVu Sans',
+        'axes.grid': True,
+        'grid.alpha': 0.2,
+        'axes.edgecolor': '0.3',
+        'axes.linewidth': 1.2
+    })
+
+    # ==================== Data Load ====================
+    df = pd.read_csv(csv_path, header=None)
+    df.columns = ['Ai', 'Bi', 'Av', 'Bv', 'v_threshold', 'delta', 'ADE', 'PET']
+    objectives = df[['ADE', 'PET']].values
+
+    # ==================== Pareto Identification ====================
+    def identify_pareto(points):
+        is_pareto = np.ones(points.shape[0], dtype=bool)
+        for i in range(points.shape[0]):
+            for j in range(points.shape[0]):
+                if all(points[j] <= points[i]) and any(points[j] < points[i]):
+                    is_pareto[i] = False
+                    break
+        return is_pareto
+
+    pareto_mask = identify_pareto(objectives)
+    pareto_points = objectives[pareto_mask]
+    non_pareto_points = objectives[~pareto_mask]
+
+    # ==================== Dynamic Axis Limits ====================
+    def smart_axis_limits(data, margin_ratio=0.15):
+        data_range = np.ptp(data, axis=0)
+        data_center = np.mean(data, axis=0)
+        dynamic_margin = margin_ratio * np.max(data_range)
+        min_margin = 0.1 * np.max(data_range) if np.max(data_range) > 0 else 1.0
+        dynamic_margin = max(dynamic_margin, min_margin)
+        return [data_center[0]-dynamic_margin, data_center[0]+dynamic_margin], \
+               [data_center[1]-dynamic_margin, data_center[1]+dynamic_margin]
+
+    xlim, ylim = smart_axis_limits(objectives)
+
+    # ==================== Plotting ====================
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=120)
+
+    # Non-Pareto Points
+    ax.scatter(
+        non_pareto_points[:, 0], non_pareto_points[:, 1],
+        color='#2a5a8b', alpha=0.7, s=35, edgecolors='none', label='Non-Pareto'
+    )
+
+    # Pareto Points
+    ax.scatter(
+        pareto_points[:, 0], pareto_points[:, 1],
+        color='#E24A33', s=100, label='Pareto Front',
+        edgecolor='black', linewidth=1.5, zorder=10, marker='D'
+    )
+
+    # Sort and Connect Pareto Points
+    sorted_idx = np.argsort(pareto_points[:, 0])
+    pareto_sorted = pareto_points[sorted_idx]
+    ax.plot(
+        pareto_sorted[:, 0], pareto_sorted[:, 1],
+        color='#E24A33', linestyle='--', alpha=0.6, linewidth=1.5
+    )
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # Reference Lines
+    ax.axhline(np.mean(objectives[:, 1]), color='gray', linestyle=':', alpha=0.4, linewidth=1)
+    ax.axvline(np.mean(objectives[:, 0]), color='gray', linestyle=':', alpha=0.4, linewidth=1)
+
+    ax.set_xlabel('ADE', fontsize=17)
+    ax.set_ylabel('RPETE', fontsize=17)
+    ax.set_title(f'Pareto Front Visualization: {scene_name}', fontsize=15, pad=20)
+
+    ax.legend(
+        loc='upper right', fontsize=12, framealpha=1,
+        edgecolor='black', markerscale=1.2
+    )
+
+    plt.tight_layout()
+
+    filename = f'{scene_name}_pareto_front.png'
+    full_save_path = os.path.join(save_path, filename)
+    plt.savefig(full_save_path, dpi=300, bbox_inches='tight')
+    print(f"Pareto front visualization saved to: {full_save_path}")
+    plt.show()
+
+
+# Example usage
+if __name__ == "__main__":
+    csv_path = r'path\to\all_samples.csv'
+    save_path = r'path\to\save\plots'
+    scene_name = 'example_scene'
+
+    plot_pareto_front(csv_path, save_path, scene_name)
