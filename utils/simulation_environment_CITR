@@ -1,0 +1,11 @@
+function params = get_simulation_parameters()
+    params.roomWidth = 35;
+    params.roomHeight = 20;
+    params.vehicle1 = [17.5, 17.5, 22.1, 22.1; 4.9, 6.8, 6.8, 4.9];
+    params.vehicle2 = [17.5, 17.5, 22.1, 22.1; 8.2, 10, 10, 8.2];
+    params.wallpoints = {[0, 0; 0, 0], [0, 0; 0, 0], [0, 0; 0, 0], [0, 0; 0, 0]};
+    params.numWalls = length(params.wallpoints);
+    params.obs = cell(1, 1);
+    params.obs{1} = [30, 18; 30, 19; 31, 18; 31, 19];
+    params.field = [0, 0; 35, 0; 35, 20; 0, 20];
+end
