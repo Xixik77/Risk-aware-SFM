@@ -31,9 +31,19 @@ This repository provides the source code for simulating risk-aware pedestrian-ve
 ---
 
 ## 🗂 Project Structure
+```bash
+.
 ├── core_social_force_module/   # Sub-modules for social force computation, decision-making, etc.
 ├── optimization/               # Parameter optimization code
 ├── visualization/              # Visualization scripts (Python)
 ├── data/                       # Example datasets
 ├── main_simulation.m           # Main simulation entry
 ├── README.md
+
+## 🤝 Contributing to this project
+
+We welcome and encourage contributions to this project! Whether it's reporting bugs, suggesting new features, or improving existing functionality, your input is highly valuable. You can open an issue on our [GitHub Issues](https://github.com/Xixik77/Risk-aware-SFM) page to share feedback or raise problems.
+
+If you'd like to contribute directly, feel free to fork this repository and submit a pull request. Be sure to include necessary tests, comments, and documentation with your code changes.
+
+We also recommend following best practices for version control and keeping changes consistent with the project's structure.
