@@ -1,0 +1,13 @@
+function params = get_simulation_parameters()
+    params.roomWidth = 30;
+    params.roomHeight = 26;
+    params.wallpoints = {[0, 0; 0, 6.5], [0, 6.5; 2.6, 6.3], [2.6, 6.3; 5.6, 5.7], [5.6, 5.7; 10.5, 3.6],...
+                         [10.5, 3.6; 11, 0], [11, 0; 0, 0]};
+        
+    params.numWalls = length(params.wallpoints);
+    params.obs = cell(1, 1);
+    params.obs{1} = [0, 0; 0, 6.5; 2.6, 6.3; 5.6, 5.7;10.5, 3.6;11, 0];           
+
+    
+    params.field = [0, 0; 30, 0; 0, 26; 0, 26];
+end
