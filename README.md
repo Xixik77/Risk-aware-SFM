@@ -47,3 +47,15 @@ We welcome and encourage contributions to this project! Whether it's reporting b
 If you'd like to contribute directly, feel free to fork this repository and submit a pull request. Be sure to include necessary tests, comments, and documentation with your code changes.
 
 We also recommend following best practices for version control and keeping changes consistent with the project's structure.
+
+## 📄 License
+
+Distributed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+
+---
+
+## 🙏 Acknowledgements
+
+- This project is developed based on our previous work on social force modeling and pedestrian-vehicle interaction simulation.
+- The optimization framework design was inspired by the principles of evolutionary Bayesian optimization in multi-objective scenarios.
+- Some visualization components were adapted from open-source Python visualization tools.
