@@ -7,7 +7,7 @@ This repository contains the code for the paper:
 
 ## 📋 Introduction
 
-This repository provides the source code for simulating risk-aware pedestrian-vehicle interactions based on an improved **Social Force Model (SFM)** integrated with a **decision-making module**. The simulation parameters are optimized via a **multi-objective evolutionary Bayesian optimization framework**, targeting a balance between **trajectory accuracy (ADE)** and **interaction safety realism (RPETE)**. The approach is validated on **CITR** and **DUT** datasets.
+This repository provides the source code for simulating risk-aware pedestrian-vehicle interactions based on a Risk-aware **Social Force Model ** integrated with a **decision-making module**. The simulation parameters are optimized via a **multi-objective evolutionary Bayesian optimization framework**, targeting a balance between **trajectory accuracy (ADE)** and **interaction accuracy (RPETE)**. The approach is validated on **CITR** and **DUT** datasets.
 
 ### The repository supports:
 - Simulated pedestrian-vehicle interactions under varying traffic scenarios.
@@ -19,18 +19,21 @@ This repository provides the source code for simulating risk-aware pedestrian-ve
 ## ⚙️ Dependencies
 
 - **MATLAB R2023b** (or compatible version)
-- **Python 3.8+** (for visualization, optional)
+- **Python 3.8+** (optional for visualization)
   - `numpy`
   - `matplotlib`
   - `pandas`
-- **Required MATLAB Toolboxes**:
+  - `openpyxl` (for reading Excel files)
+- **Required MATLAB Toolboxes:**
   - Global Optimization Toolbox
   - Statistics and Machine Learning Toolbox
 
 ---
 
-## 🚀 Quick Start
-
-1. **Clone this repository:**
-```bash
-git clone https://github.com/YourName/RiskAwareSFM.git
+## 🗂 Project Structure
+├── core_social_force_module/   # Sub-modules for social force computation, decision-making, etc.
+├── optimization/               # Parameter optimization code
+├── visualization/              # Visualization scripts (Python)
+├── data/                       # Example datasets
+├── main_simulation.m           # Main simulation entry
+├── README.md
