@@ -1,0 +1,119 @@
+Visualization Script: Optimized vs Real Trajectories with Vehicle Paths
+------------------------------------------------------------------------
+This script plots the comparison between:
+- Real pedestrian trajectories
+- Simulated (optimized) pedestrian trajectories
+- Vehicle trajectories
+
+Output: Saves the visualization as a high-resolution PNG image.
+
+Author: Your Name
+Date: YYYY-MM-DD
+"""
+
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.lines import Line2D
+
+
+def plot_trajectory_comparison(ped_excel_path, veh_csv_path, sim_traj_csv_path, save_path, scene_name='scene'):
+    """
+    Plot real vs optimized pedestrian trajectories alongside vehicle trajectories.
+
+    Parameters:
+    - ped_excel_path (str): Path to the real pedestrian trajectory Excel file.
+    - veh_csv_path (str): Path to the vehicle trajectory CSV file.
+    - sim_traj_csv_path (str): Path to the optimized simulated pedestrian trajectory CSV.
+    - save_path (str): Directory to save the output plot.
+    - scene_name (str): Identifier for the scene, used in the output filename.
+    """
+    # ====== Load Data ======
+    ped_df = pd.read_excel(ped_excel_path, header=None, engine='openpyxl')
+    real_ped_x = [ped_df.iloc[:, i].dropna().values for i in range(18, 26)]
+    real_ped_y = [ped_df.iloc[:, i].dropna().values for i in range(27, 35)]
+
+    df_multi = pd.read_csv(sim_traj_csv_path)
+    ped_ids_multi = df_multi['pedestrian_id'].unique()
+
+    try:
+        veh_df = pd.read_csv(veh_csv_path, skiprows=1, header=None, usecols=[3, 4], names=['x', 'y'])
+        veh_x = veh_df['x'].values
+        veh_y = veh_df['y'].values
+    except FileNotFoundError:
+        print(f"Vehicle trajectory file not found: {veh_csv_path}")
+        veh_x = veh_y = np.array([])
+
+    # ====== Plotting ======
+    plt.figure(figsize=(10, 7), dpi=400)
+
+    # Simulated Trajectories
+    for pid in ped_ids_multi:
+        traj = df_multi[df_multi['pedestrian_id'] == pid]
+        x, y = traj['x'].values, traj['y'].values
+        plt.plot(x, y, '--', color='blue', linewidth=1.2, alpha=0.8, zorder=6,
+                 label='Simulated Trajectory' if pid == ped_ids_multi[0] else "")
+        plt.scatter(x[-1], y[-1], s=120, marker='*', color='deepskyblue',
+                    edgecolors='navy', zorder=10)
+
+    # Real Trajectories
+    for i, (x, y) in enumerate(zip(real_ped_x, real_ped_y)):
+        plt.plot(x, y, 'r-', linewidth=1.5, alpha=0.8, zorder=5,
+                 label='Real Trajectory' if i == 0 else None)
+        plt.scatter(x[-1], y[-1], s=120, marker='*',
+                    color='deepskyblue', edgecolors='navy', zorder=10)
+
+    # Vehicle Path
+    if len(veh_x) > 0:
+        plt.plot(veh_x, veh_y, color='#FF8C00', linestyle='-', linewidth=2.5,
+                 alpha=0.9, zorder=15, label='Vehicle Path')
+        plt.scatter(veh_x[-1], veh_y[-1], s=180, marker='*',
+                    facecolor='purple', edgecolor='#4B0082',
+                    linewidth=1.2, zorder=20, label='Vehicle Endpoint')
+
+    # Formatting
+    plt.xlabel("x position (m)", fontsize=19)
+    plt.ylabel("y position (m)", fontsize=19)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.grid(True, linestyle=':', color='gray', alpha=0.6)
+    plt.axis('equal')
+
+    # Custom Legend
+    custom_lines = [
+        Line2D([0], [0], color='blue', linestyle='--', linewidth=1.5, label='Simulated Trajectory'),
+        Line2D([0], [0], color='red', linestyle='-', linewidth=1.5, label='Real Trajectory'),
+        Line2D([0], [0], color='#FF8C00', linestyle='-', linewidth=2.0, label='Vehicle Path'),
+        Line2D([0], [0], marker='*', color='deepskyblue', label='Pedestrian Endpoint',
+               markersize=12, linestyle='None', markeredgecolor='navy'),
+        Line2D([0], [0], marker='*', color='purple', label='Vehicle Endpoint',
+               markersize=12, linestyle='None', markeredgecolor='#4B0082')
+    ]
+
+    plt.legend(handles=custom_lines, loc='upper right', fontsize=18, frameon=False)
+    
+    # Save Figure
+    filename = f'{scene_name}_trajectory_comparison.png'
+    full_save_path = os.path.join(save_path, filename)
+    plt.savefig(full_save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"Trajectory comparison saved to: {full_save_path}")
+    plt.show()
+
+
+# Example usage
+if __name__ == "__main__":
+    # Define file paths for your specific scene
+    ped_excel_path = r'path\to\real_pedestrian_trajectory.xlsx'
+    veh_csv_path = r'path\to\vehicle_trajectory.csv'
+    sim_traj_csv_path = r'path\to\simulated_trajectory.csv'
+    save_path = r'path\to\save\plots'
+    scene_name = 'example_scene'
+
+    plot_trajectory_comparison(
+        ped_excel_path,
+        veh_csv_path,
+        sim_traj_csv_path,
+        save_path,
+        scene_name
+    )
