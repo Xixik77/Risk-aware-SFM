@@ -1,1 +1,117 @@
 
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.lines import Line2D
+
+
+def plot_all_trajectories(ped_excel_path, sim_traj_csv_path, pet_traj_csv_path, veh_csv_path, save_path, scene_name='scene'):
+    # ====== Load Real & Simulated Trajectories ======
+    ped_df = pd.read_excel(ped_excel_path, header=None, engine='openpyxl')
+    sim_ped_x = [ped_df.iloc[:, i].dropna().values for i in range(0, 8)]
+    sim_ped_y = [ped_df.iloc[:, i].dropna().values for i in range(9, 17)]
+    real_ped_x = [ped_df.iloc[:, i].dropna().values for i in range(18, 26)]
+    real_ped_y = [ped_df.iloc[:, i].dropna().values for i in range(27, 35)]
+
+    df_multi = pd.read_csv(sim_traj_csv_path)
+    ped_ids_multi = df_multi['pedestrian_id'].unique()
+
+    df_pet = pd.read_csv(pet_traj_csv_path)
+    ped_ids_pet = df_pet['pedestrian_id'].unique()
+
+    try:
+        veh_df = pd.read_csv(veh_csv_path, skiprows=1, header=None, usecols=[3, 4], names=['x', 'y'])
+        veh_x = veh_df['x'].values
+        veh_y = veh_df['y'].values
+    except FileNotFoundError:
+        print(f"Vehicle trajectory file not found: {veh_csv_path}")
+        veh_x = veh_y = np.array([])
+
+    # ====== Visualization ======
+    plt.figure(figsize=(10, 7), dpi=400)
+
+    # Original Simulated (ADE-optimized)
+    for x, y in zip(sim_ped_x, sim_ped_y):
+        plt.plot(x, y, 'b--', linewidth=1, alpha=0.6, zorder=5, label='ADE-optimized')
+        plt.scatter(x[-1], y[-1], s=80, marker='*', color='deepskyblue', edgecolors='navy', zorder=10)
+
+    # Multi-objective Optimized
+    for pid in ped_ids_multi:
+        traj = df_multi[df_multi['pedestrian_id'] == pid]
+        x, y = traj['x'].values, traj['y'].values
+        plt.plot(x, y, '-', color='green', linewidth=1.2, alpha=0.8, zorder=6,
+                 label='Multi-objective' if pid == ped_ids_multi[0] else "")
+        plt.scatter(x[-1], y[-1], s=80, marker='*', color='green', edgecolors='darkgreen', zorder=21)
+
+    # Single-objective PET Optimized
+    for pid in ped_ids_pet:
+        traj = df_pet[df_pet['pedestrian_id'] == pid]
+        x, y = traj['x'].values, traj['y'].values
+        plt.plot(x, y, '-', color='orange', linewidth=1.2, alpha=0.8, zorder=6,
+                 label='Single-objective PET' if pid == ped_ids_pet[0] else "")
+        plt.scatter(x[-1], y[-1], s=80, marker='*', color='orange', edgecolors='darkorange', zorder=22)
+
+    # Real Trajectories
+    for i, (x, y) in enumerate(zip(real_ped_x, real_ped_y)):
+        plt.plot(x, y, 'r-', linewidth=1.5, alpha=0.8, zorder=7,
+                 label='Real Trajectory' if i == 0 else None)
+        plt.scatter(x[-1], y[-1], s=80, marker='*', color='red', edgecolors='darkred', zorder=25)
+
+    # Vehicle Trajectory
+    if len(veh_x) > 0:
+        plt.plot(veh_x, veh_y, color='#FF8C00', linestyle='-', linewidth=2.5,
+                 alpha=0.9, zorder=15, label='Vehicle Path')
+        plt.scatter(veh_x[-1], veh_y[-1], s=180, marker='*',
+                    facecolor='purple', edgecolor='#4B0082',
+                    linewidth=1.2, zorder=20, label='Vehicle End')
+
+    # Formatting
+    plt.xlabel("x position (m)", fontsize=18)
+    plt.ylabel("y position (m)", fontsize=18)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.grid(True, linestyle=':', color='gray', alpha=0.6)
+    plt.axis('equal')
+
+    # Custom Legend
+    custom_lines = [
+        Line2D([0], [0], color='green', linestyle='-', linewidth=1.2, label='Multi-objective'),
+        Line2D([0], [0], color='orange', linestyle='-', linewidth=1.2, label='Single-objective PET'),
+        Line2D([0], [0], color='blue', linestyle='--', linewidth=1.2, label='ADE-optimized'),
+        Line2D([0], [0], color='red', linestyle='-', linewidth=1.2, label='Real Trajectory'),
+        Line2D([0], [0], color='#FF8C00', linestyle='-', linewidth=2.0, label='Vehicle Path'),
+        Line2D([0], [0], marker='*', color='green', label='Multi End', markersize=8, linestyle='None', markeredgecolor='darkgreen'),
+        Line2D([0], [0], marker='*', color='orange', label='Single End', markersize=8, linestyle='None', markeredgecolor='darkorange'),
+        Line2D([0], [0], marker='*', color='red', label='Real End', markersize=8, linestyle='None', markeredgecolor='darkred'),
+        Line2D([0], [0], marker='*', color='purple', label='Vehicle Endpoint',
+               markersize=10, linestyle='None', markeredgecolor='#4B0082')
+    ]
+
+    plt.legend(handles=custom_lines, loc='upper right', fontsize=14, frameon=False)
+
+    # Save Plot
+    filename = f'{scene_name}_all_trajectory_comparison.png'
+    full_save_path = os.path.join(save_path, filename)
+    plt.savefig(full_save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"Trajectory comparison figure saved to: {full_save_path}")
+    plt.show()
+
+
+# Example usage
+if __name__ == "__main__":
+    ped_excel_path = r'path\to\real_and_sim_pedestrian.xlsx'
+    sim_traj_csv_path = r'path\to\multiobjective_simulated.csv'
+    pet_traj_csv_path = r'path\to\pet_singleobjective_simulated.csv'
+    veh_csv_path = r'path\to\vehicle_trajectory.csv'
+    save_path = r'path\to\save\plots'
+    scene_name = 'example_scene'
+
+    plot_all_trajectories(
+        ped_excel_path,
+        sim_traj_csv_path,
+        pet_traj_csv_path,
+        veh_csv_path,
+        save_path,
+        scene_name
+    )
