@@ -34,10 +34,9 @@ This repository provides the source code for simulating risk-aware pedestrian-ve
 ```bash
 .
 ├── core_social_force_module/   # Sub-modules for social force computation, decision-making, etc.
-├── optimization/               # Parameter optimization code
 ├── visualization/              # Visualization scripts (Python)
 ├── utils/                      # Utility functions for geometric computations and scene configuration
-├── main_simulation.m           # Main simulation entry
+├── simulation.m                # Main simulation entry
 ├── README.md
 
 ---
