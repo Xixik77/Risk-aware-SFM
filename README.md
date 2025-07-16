@@ -7,7 +7,7 @@ This repository contains the code for the paper:
 
 ## 📋 Introduction
 
-This repository provides the source code for simulating risk-aware pedestrian-vehicle interactions based on a Risk-aware **Social Force Model ** integrated with a **decision-making module**. The simulation parameters are optimized via a **multi-objective evolutionary Bayesian optimization framework**, targeting a balance between **trajectory accuracy (ADE)** and **interaction accuracy (RPETE)**. The approach is validated on **CITR** and **DUT** datasets.
+This repository provides the source code for simulating risk-aware pedestrian-vehicle interactions based on a Risk-aware Social Force Model  integrated with a **decision-making module**. The simulation parameters are optimized via a **multi-objective evolutionary Bayesian optimization framework**, targeting a balance between **trajectory accuracy (ADE)** and **interaction accuracy (RPETE)**. The approach is validated on **CITR** and **DUT** datasets.
 
 ### The repository supports:
 - Simulated pedestrian-vehicle interactions under varying traffic scenarios.
